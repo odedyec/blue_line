@@ -13,15 +13,18 @@
 #include <sstream>
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-
+#include <std_msgs/Bool.h>
 
 ros::Publisher line_pub_new;
 
+
 #define THRESHOLD 50;
+
 #define THRESHOLD_red 50;
 #define THRESHOLD_green 50;
 #define THRESHOLD_blue 50;
-const int PIXELS_TO_REMOVE = 70;
+
+const int PIXELS_TO_REMOVE = 0;
 const int alpha = 0.9;
 using namespace cv;
 using namespace std;
@@ -32,41 +35,95 @@ Mat lensFilter(const Mat& src)
     assert(src.type() == CV_8UC3);
 
     Mat redOnly;
-    inRange(src, Scalar(0, 0, 0), Scalar(22, 40, 22), redOnly);
+    inRange(src, Scalar(0, 0, 0), Scalar(22, 30, 22), redOnly);
 
     return redOnly;
 }
 
+Mat lensFilter2(const Mat& src)
+{
+    assert(src.type() == CV_8UC3);
+
+    Mat redOnly;
+    inRange(src, Scalar(15, 25, 12), Scalar(25, 42, 20), redOnly);
+
+    return redOnly;
+}
+
+Mat lensFilter3(const Mat& src)
+{
+    assert(src.type() == CV_8UC3);
+
+    Mat redOnly;
+    inRange(src, Scalar(0, 0, 0), Scalar(50, 50, 25), redOnly);
+
+    return redOnly;
+}
+
+
+Mat drain_filter(const Mat& src)
+{
+    assert(src.type() == CV_8UC3);
+
+    Mat redOnly;
+    inRange(src, Scalar(35,50,26), Scalar(53,80,40), redOnly);
+
+    return redOnly;
+}
+
+Mat drain_filter2(const Mat& src)
+{
+    assert(src.type() == CV_8UC3);
+
+    Mat redOnly;
+    inRange(src, Scalar(150,180,90), Scalar(180,255,115), redOnly);
+
+    return redOnly;
+}
 
 Mat dark_blue(const Mat& src)
 {
     assert(src.type() == CV_8UC3);
 
     Mat redOnly;
-    inRange(src, Scalar(10, 15, 10), Scalar(60, 60, 60), redOnly);
+    inRange(src, Scalar(32, 30, 15), Scalar(52,52,26), redOnly);
 //    inRange(src, Scalar(15, 30, 35), Scalar(25, 45, 50), redOnly);
 
     return redOnly;
 }
 
+
+
+Mat flippers(const Mat& src)
+{
+    assert(src.type() == CV_8UC3);
+
+    Mat redOnly;
+    inRange(src, Scalar(64, 45, 20), Scalar(70,55,26), redOnly);
+//    inRange(src, Scalar(15, 30, 35), Scalar(25, 45, 50), redOnly);
+
+    return redOnly;
+}
 void CallBackFunc(int event, int x, int y, int flags, void* userdata)
 {
+     Mat *img = ((Mat *)userdata);
      if  ( event == EVENT_LBUTTONDOWN )
      {
-          cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
+//          cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
+//          cout << img->at<Vec3b>(y,x) << endl;
 
 
        //   cout << "color of chosen point " << color << " " << endl;
      }
      else if  ( event == EVENT_RBUTTONDOWN )
      {
-          cout << "Right button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
-
+//          cout << "Right button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
+//          cout << img->at<Vec3b>(x,y) << endl;
      }
      else if  ( event == EVENT_MBUTTONDOWN )
      {
-          cout << "Middle button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
-
+//          cout << "Middle button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
+//          cout << img->at<Vec3b>(y,x) << endl;
      }
 }
 
@@ -78,7 +135,8 @@ double myPolyval(vector<double> p, int x)
 
 Mat image2binary(Mat img)
 {
-    Mat gray_img;cvtColor( img, gray_img, CV_BGR2GRAY );
+    Mat gray_img;
+    cvtColor( img, gray_img, CV_BGR2GRAY );
     Rect roi(PIXELS_TO_REMOVE, 0, gray_img.cols-PIXELS_TO_REMOVE , gray_img.rows);
 
     Mat img_crop = gray_img(roi);
@@ -89,6 +147,7 @@ Mat image2binary(Mat img)
     threshold(img_crop, img_bin, thresh, maxval, type);
     return img_bin;
 }
+
 
 vector<double> find_com(Mat img_bin, int *ymin, int *ymax)
 {
@@ -128,6 +187,13 @@ vector<double> find_com(Mat img_bin, int *ymin, int *ymax)
     return com_row;
 }
 
+int xmin_LPF = -1, ymin_LPF = -1, xmax_LPF = -1, ymax_LPF = -1, debug = 0;
+
+void resetLine(const std_msgs::Bool& msg)
+{
+    xmin_LPF = -1, ymin_LPF = -1, xmax_LPF = -1, ymax_LPF = -1;
+}
+
 void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
     static geometry_msgs::Vector3Stamped line_msg_new;
@@ -135,19 +201,29 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
     try
     {
         Mat img = cv_bridge::toCvShare(msg, "bgr8")->image;
-        Mat img_bin = image2binary(img);
-        Mat without_lens = lensFilter(img);
-        Mat dark_blue_filtered = dark_blue(img);
 
+        Mat without_lens = lensFilter(img);
+        Mat without_lens2 = lensFilter2(img);
+        Mat without_lens3 = lensFilter3(img);
+        Mat img_bin = image2binary(img);//dark_blue(img);
+        Mat filtered_drain = drain_filter(img);
+        Mat filtered_drain2 = drain_filter2(img);
+        Mat no_flippers = flippers(img);
+
+        circle(img_bin, Point(390,215), 392,Scalar(0,0,0),17,0);
+        circle(img, Point(390,215), 392,Scalar(0,0,0),17,0);
+
+        bitwise_and(img_bin,0,img_bin,without_lens);
+        bitwise_and(img_bin,0,img_bin,without_lens2);
+        bitwise_and(img_bin,0,img_bin,filtered_drain);
+        bitwise_and(img_bin,0,img_bin,filtered_drain2);
+        bitwise_and(img_bin,0,img_bin,no_flippers);
 
 
 
         static int xmin = -1, ymin = -1, xmax = -1, ymax = -1;
         vector<double> com_row = find_com(img_bin, &ymin, &ymax);
-
-        //cout << ymin << ", " << ymax << "\t" << com_row[ymin] << ", " << com_row[ymax] << endl;
-        //------------------------
-
+        //int xmin_LPF, xmax_LPF, ymin_LPF, ymax_LPF;
         int R = 500;
         int start = ymin;
         int N = 30;
@@ -221,14 +297,74 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 
 
 
-        line( img, Point(xmin + PIXELS_TO_REMOVE,ymin), Point(xmax+ PIXELS_TO_REMOVE, ymax), Scalar(255,100,100), 2, 8, 0);
-        line( img_bin, Point(xmin,ymin), Point(xmax, ymax), Scalar(100,100,100), 2, 8, 0);
-        imshow("one_new",without_lens);
-        imshow("two_new",dark_blue_filtered);
 
-        imshow("bin_new", img_bin);
-        setMouseCallback("bin_new", CallBackFunc, NULL);
-        cv::waitKey(1);
+        int THRESH = 100;
+        double al = 0.1;
+      //  int flag;
+        int filt;
+        ros::param::param("/Line/Filter", filt, 0);
+        if (((xmin_LPF == -1))||((xmax_LPF) == -1)||((ymin_LPF) == -1)||((ymax_LPF) == -1) || !(filt))
+        {
+
+//            cout << xmin << "\t" << xmax << "\t" << ymin << "\t" << ymax << "NO" << endl;
+            xmin_LPF = xmin;
+            xmax_LPF = xmax;
+            ymin_LPF = ymin;
+            ymax_LPF = ymax;
+
+        }
+        else
+        {
+
+            //cout << xmin<<"\t"<<xmax<<"\t"<< xmin<<"\t"<<xmax<<" yes2" << endl;
+//            cout << "before" << xmin_LPF<<"\t"<<xmax_LPF<<"\t"<< ymin_LPF<<"\t"<<ymax_LPF<<" yes" << endl;
+            if  ((xmin < (xmin_LPF+THRESH)) && (xmin > (xmin_LPF-THRESH)))
+                xmin_LPF = xmin_LPF * (1 - al) + al * xmin;
+
+            if  ((ymin < (ymin_LPF+THRESH)) && (ymin > (ymin_LPF-THRESH)))
+                ymin_LPF = ymin_LPF * (1 - al) + al * ymin;
+
+            if  ((xmax < xmax_LPF+THRESH) && (xmax > (xmax_LPF-THRESH)))
+                xmax_LPF = xmax_LPF * (1 - al) + al * xmax;
+
+            if  ((ymax < (ymax_LPF+THRESH)) && (ymax > (ymax_LPF-THRESH)))
+                ymax_LPF = ymax_LPF * (1 - al) + al * ymax;
+
+
+//            cout << "after" << xmin_LPF<<"\t"<<xmax_LPF<<"\t"<< ymin_LPF<<"\t"<<ymax_LPF<< "\t" << xmin << " yes2" << endl;
+
+
+        }
+
+
+
+
+
+        //imshow("filtered_drain",filtered_drain);
+
+        ros::param::param("/Line/Debug", debug, debug);
+        if (debug)
+        {
+            cv::namedWindow("img_bin");
+            cv::namedWindow("bin_new");
+            line( img_bin, Point(xmin_LPF,ymin_LPF), Point(xmax_LPF, ymax_LPF), Scalar(99,28,242), 5, 8, 0);
+            line( img, Point(xmin_LPF,ymin_LPF), Point(xmax_LPF, ymax_LPF), Scalar(99,28,242), 5, 8, 0);
+          //  line( img, Point(xmin_LPF,ymin_LPF), Point(xmax_LPF, ymax_LPF), Scalar(99,28,242), 5, 8, 0);
+
+            line( img, Point(xmin + PIXELS_TO_REMOVE,ymin), Point(xmax+ PIXELS_TO_REMOVE, ymax), Scalar(255,100,100), 2, 8, 0);
+            line( img_bin, Point(xmin,ymin), Point(xmax, ymax), Scalar(100,100,100), 2, 8, 0);
+            imshow("img_bin",img_bin);
+      //  imshow("no_flippers",without_lens2);
+            imshow("bin_new", img);
+
+            setMouseCallback("img_bin", CallBackFunc, &img);
+            cv::waitKey(30);
+        }
+        else
+        {
+            cv::destroyAllWindows();
+            cv::waitKey(30);
+        }
         line_msg_new.header.stamp = ros::Time::now();
         line_msg_new.header.frame_id = "blue_line_new";
         line_msg_new.vector.x = (xmax - xmin) / ((ymax - ymin) * 1.0);
@@ -246,21 +382,21 @@ int main(int argc, char **argv)
 
     ros::init(argc, argv, "image_listener_new");
     ros::NodeHandle nh_new;
-    cv::namedWindow("one_new");
-    cv::namedWindow("two_new");
-    cv::namedWindow("bin_new");
-    cv::startWindowThread();
+   // cv::namedWindow("filtered_drain");
+  //  cv::namedWindow("no_flippers");
+
+    //cv::startWindowThread();
     image_transport::ImageTransport it(nh_new);
     image_transport::Subscriber sub_new = it.subscribe("raw_cam_image", 1, imageCallback);
+    ros::Subscriber sub_line_reset = nh_new.subscribe("line/reset", 1, resetLine);
 
-    line_pub_new = nh_new.advertise<geometry_msgs::Vector3Stamped>("/new_color", 1000);
+    line_pub_new = nh_new.advertise<geometry_msgs::Vector3Stamped>("/line", 1000);
 
 
 
     ros::spin();
-    cv::destroyWindow("one_new");
-    cv::destroyWindow("two_new");
-    cv::destroyWindow("bin_new");
+    cv::destroyAllWindows();
+
 
 
 

@@ -17,7 +17,7 @@ int main(int argc, char** argv)
     Mat frame;
     VideoCapture cap("pool_vid.avi"); // open the avi file
     if(!cap.isOpened())  // check if we succeeded
-        return -1;
+    {cout << "couldn't find vid\n";return -1;}
     ros::init(argc, argv, "image_publisher");
     ros::NodeHandle nh;
     image_transport::ImageTransport it(nh);
